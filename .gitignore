@@ -14,9 +14,11 @@ build/
 dist/
 *.spec.bak
 
-# Operator-side runtime files (created on first run next to qinsim.exe)
+# Operator-side runtime files (created on first run next to qinsim.exe).
+# Anchor scenarios/ with a leading slash so the rule matches only the
+# top-level operator copy and leaves src/qinsim/scenarios/ tracked.
 qinsim.yaml
-scenarios/
+/scenarios/
 
 # IDE
 .vscode/

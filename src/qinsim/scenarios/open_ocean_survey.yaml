@@ -1,0 +1,58 @@
+# Open-ocean survey — sea state 3, DGPS, deep water. Tests that
+# Qinsy's motion compensation copes with non-trivial roll/pitch and
+# that the depth display handles a bigger trace than the harbour
+# preset (50–80 m walk band).
+
+name: open_ocean_survey
+
+destinations:
+  - host: 127.0.0.1
+    port: 13130
+
+drivers:
+
+  gnss_primary:
+    kind: gnss
+    rate_hz: 5
+    state:
+      latitude: -34.50
+      longitude: 152.00
+      altitude_msl: 12.0
+      heading_true: 270.0
+      speed_knots: 6.0
+      fix_quality: 2         # DGPS
+      num_satellites: 9
+      hdop: 1.4
+      sentences: [GGA, RMC, VTG, GST, ZDA]
+
+  heading_primary:
+    kind: heading
+    rate_hz: 10
+    state:
+      current_heading_deg: 270.0
+      target_heading_deg: 270.0
+      turn_rate_dps: 3.0
+      sentences: [HDT]
+
+  motion_primary:
+    kind: motion
+    rate_hz: 25
+    state:
+      sea_state: 3
+
+  depth_primary:
+    kind: depth
+    rate_hz: 5
+    state:
+      depth_m: 65.0
+      transducer_offset_m: 0.5
+      max_range_m: 200.0
+      walk_rate_m_per_s: 0.30
+
+  env_primary:
+    kind: env
+    rate_hz: 1
+    state:
+      water_temp_c: 14.2
+      pressure_bar: 1.018
+      humidity_pct: 78.0

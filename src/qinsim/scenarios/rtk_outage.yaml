@@ -1,0 +1,63 @@
+# Harbour scenario + a long GNSS blackout — 60-second outage every
+# three minutes models the typical RTK base-station dropout: the
+# corrected stream goes silent and Qinsy's fix-quality logic should
+# note the extended gap.
+#
+# A future qinsim revision will add a state-mutation scheduler so we
+# can model the more interesting case (RTK fixed → float → DGPS →
+# none, on a timeline) without dropping the stream entirely. The
+# current effects library handles the dropout case directly.
+
+name: rtk_outage
+
+destinations:
+  - host: 127.0.0.1
+    port: 13130
+
+drivers:
+
+  gnss_primary:
+    kind: gnss
+    rate_hz: 10
+    state:
+      latitude: -33.85
+      longitude: 151.21
+      altitude_msl: 25.0
+      heading_true: 90.0
+      speed_knots: 4.0
+      fix_quality: 4
+      num_satellites: 12
+      hdop: 0.6
+      sentences: [GGA, RMC, VTG, GST]
+    effects:
+      - kind: burst_dropout
+        duration_s: 60.0
+        interval_s: 180.0
+
+  heading_primary:
+    kind: heading
+    rate_hz: 20
+    state:
+      current_heading_deg: 90.0
+      target_heading_deg: 90.0
+      turn_rate_dps: 5.0
+      sentences: [HDT]
+
+  motion_primary:
+    kind: motion
+    rate_hz: 25
+    state:
+      sea_state: 1
+
+  depth_primary:
+    kind: depth
+    rate_hz: 5
+    state:
+      depth_m: 18.5
+      transducer_offset_m: 0.5
+
+  env_primary:
+    kind: env
+    rate_hz: 1
+    state:
+      water_temp_c: 18.5

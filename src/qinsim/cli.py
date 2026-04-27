@@ -44,6 +44,26 @@ _LOCAL_SCENARIO_DIR = Path("scenarios")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
+    # Wrap the whole entrypoint so a startup error doesn't dump the
+    # operator out of a double-clicked console window before they can
+    # read it. The pause is only triggered when stdin is a real TTY —
+    # piped / scripted invocations exit immediately as you'd expect.
+    try:
+        return _main_inner(argv)
+    except SystemExit:
+        # argparse exits via SystemExit on bad args; let it propagate
+        # but still pause so the operator sees the error message.
+        _pause_if_interactive()
+        raise
+    except Exception:
+        import traceback
+
+        traceback.print_exc()
+        _pause_if_interactive()
+        return 1
+
+
+def _main_inner(argv: Optional[List[str]]) -> int:
     args = _parse_args(argv)
     logging.basicConfig(
         level=getattr(logging, args.log_level.upper(), logging.INFO),
@@ -58,13 +78,32 @@ def main(argv: Optional[List[str]] = None) -> int:
     raise SystemExit(f"unknown command: {args.command}")
 
 
+def _pause_if_interactive() -> None:
+    """Hold the console open if we're attached to a real terminal.
+
+    A double-clicked .exe inherits a console window that closes on
+    exit; without a pause the operator never sees a startup error.
+    Skip the pause when stdin isn't a TTY so CI / piped invocations
+    aren't blocked.
+    """
+    try:
+        if sys.stdin.isatty():
+            print("\nPress Enter to exit...", file=sys.stderr)
+            sys.stdin.readline()
+    except Exception:
+        pass
+
+
 def _parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="qinsim",
         description="Minimal Qinsy NMEA simulator — single exe, UDP, fault injection.",
     )
     p.add_argument("--log-level", default="INFO", help="DEBUG, INFO, WARNING, ERROR")
-    sub = p.add_subparsers(dest="command", required=True)
+    # ``required=False`` so a bare double-click with no subcommand
+    # falls through to the ``serve`` default below — operators don't
+    # have to know argparse to launch the TUI.
+    sub = p.add_subparsers(dest="command", required=False)
 
     s_serve = sub.add_parser("serve", help="Run a scenario and show the live panel")
     s_serve.add_argument(
@@ -90,7 +129,18 @@ def _parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
         default=_LOCAL_SCENARIO_DIR,
     )
 
-    return p.parse_args(argv)
+    args = p.parse_args(argv)
+    # Default to ``serve`` so a double-clicked exe boots the TUI.
+    # Filling in the scenario / scenarios-dir defaults the same way
+    # the serve subparser would means the rest of the CLI doesn't
+    # have to special-case this path.
+    if args.command is None:
+        args.command = "serve"
+        if not hasattr(args, "scenario"):
+            args.scenario = None
+        if not hasattr(args, "scenarios_dir"):
+            args.scenarios_dir = _LOCAL_SCENARIO_DIR
+    return args
 
 
 # ---------------------------------------------------------------------

@@ -28,7 +28,17 @@ from typing import List, Optional
 
 from .config import Config, ScenarioEntry, load_config, list_scenarios
 from .runtime import ThreadedRegistry
-from .status import KeyEvent, make_live, render, start_keypress_thread
+from .status import (
+    KeyEvent,
+    UIState,
+    adjust_rate,
+    field_count_for,
+    make_live,
+    render,
+    start_keypress_thread,
+    toggle_sentence,
+    SENTENCE_CATALOGUE,
+)
 
 
 log = logging.getLogger(__name__)
@@ -184,37 +194,131 @@ def _cmd_serve(args: argparse.Namespace) -> int:
 
     signal.signal(signal.SIGINT, _on_sigint)
 
+    ui = UIState()
+
     try:
         with make_live() as live:
             while not interrupted:
-                live.update(render(registry, scenarios, active, started_at))
+                live.update(render(registry, scenarios, active, started_at, ui))
                 try:
                     ev = events.get(timeout=0.2)
                 except queue.Empty:
                     continue
+                # ``q`` always quits regardless of mode — the operator
+                # should never be trapped in the config panel.
                 if ev.key == "q":
                     break
-                if ev.key == "r":
-                    registry.swap(config)
-                    started_at = time.monotonic()
-                    continue
-                if ev.key.isdigit():
-                    idx = int(ev.key) - 1
-                    if 0 <= idx < len(scenarios):
-                        target = scenarios[idx].path
-                        try:
-                            config = load_config(target)
-                        except Exception as exc:
-                            log.error("failed to load %s: %s", target, exc)
-                            continue
-                        registry.swap(config)
-                        active = target
-                        started_at = time.monotonic()
+                if ui.mode == "config":
+                    config = _handle_config_key(ev, registry, config, ui)
+                else:
+                    new_config, new_active, new_started = _handle_list_key(
+                        ev, registry, scenarios, config, active, started_at, ui
+                    )
+                    config = new_config
+                    active = new_active
+                    started_at = new_started
     finally:
         keypress_stop.set()
         registry.stop()
 
     return 0
+
+
+def _handle_list_key(
+    ev: KeyEvent,
+    registry: ThreadedRegistry,
+    scenarios: List[ScenarioEntry],
+    config: Config,
+    active: Path,
+    started_at: float,
+    ui: UIState,
+) -> tuple:
+    """Process one keypress while the TUI is in list (default) mode.
+
+    Returns ``(config, active, started_at)`` — possibly mutated by a
+    scenario load. Driver-cursor and mode transitions live on ``ui``.
+    """
+    if ev.key == "r":
+        registry.swap(config)
+        return config, active, time.monotonic()
+    if ev.key == "up":
+        if config.drivers:
+            ui.driver_idx = (ui.driver_idx - 1) % len(config.drivers)
+        return config, active, started_at
+    if ev.key == "down":
+        if config.drivers:
+            ui.driver_idx = (ui.driver_idx + 1) % len(config.drivers)
+        return config, active, started_at
+    if ev.key == "enter":
+        if config.drivers:
+            ui.mode = "config"
+            ui.field_idx = 0
+        return config, active, started_at
+    if ev.key.isdigit():
+        idx = int(ev.key) - 1
+        if 0 <= idx < len(scenarios):
+            target = scenarios[idx].path
+            try:
+                new_config = load_config(target)
+            except Exception as exc:
+                log.error("failed to load %s: %s", target, exc)
+                return config, active, started_at
+            registry.swap(new_config)
+            ui.driver_idx = 0
+            return new_config, target, time.monotonic()
+    return config, active, started_at
+
+
+def _handle_config_key(
+    ev: KeyEvent,
+    registry: ThreadedRegistry,
+    config: Config,
+    ui: UIState,
+) -> Config:
+    """Process one keypress while the TUI is in config mode.
+
+    Edits mutate the in-memory ``config`` and apply via
+    :meth:`ThreadedRegistry.swap` so the operator sees the new rate /
+    sentence set on the next live tick. Returns the (possibly same)
+    config object the main loop should keep using.
+    """
+    if not config.drivers:
+        ui.mode = "list"
+        return config
+    if ui.driver_idx >= len(config.drivers):
+        ui.driver_idx = 0
+    spec = config.drivers[ui.driver_idx]
+    n_fields = field_count_for(spec)
+
+    if ev.key in ("esc", "enter"):
+        ui.mode = "list"
+        ui.field_idx = 0
+        return config
+    if ev.key == "up":
+        ui.field_idx = (ui.field_idx - 1) % max(1, n_fields)
+        return config
+    if ev.key == "down":
+        ui.field_idx = (ui.field_idx + 1) % max(1, n_fields)
+        return config
+    if ev.key in ("left", "-", "right", "+"):
+        # Rate nudges only act on the rate row (field 0). On other
+        # rows we silently ignore so the operator doesn't accidentally
+        # rebuild the registry on every left/right.
+        if ui.field_idx != 0:
+            return config
+        delta = 1.0 if ev.key in ("right", "+") else -1.0
+        adjust_rate(spec, delta)
+        registry.swap(config)
+        return config
+    if ev.key == "space":
+        # Sentence rows are 1..N, indexing into the kind's catalogue.
+        catalogue = SENTENCE_CATALOGUE.get(spec.kind, ())
+        sentence_idx = ui.field_idx - 1
+        if 0 <= sentence_idx < len(catalogue):
+            toggle_sentence(spec, catalogue[sentence_idx])
+            registry.swap(config)
+        return config
+    return config
 
 
 def _cmd_validate(args: argparse.Namespace) -> int:

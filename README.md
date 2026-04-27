@@ -23,6 +23,27 @@ you can exercise Qinsy's error paths.
 5. Configure Qinsy to read NMEA over UDP on `127.0.0.1:13130` for each
    driver lane (or whatever host:port you set in the YAML).
 
+### Tweaking a driver live
+
+The drivers table shows each driver's destination (`host:port (UDP)`)
+inline with its name. To change a rate or toggle a sentence on the
+fly:
+
+- `↑` / `↓` move the cursor up and down the drivers list.
+- `enter` opens a config panel for the highlighted driver.
+- In config mode: `↑` / `↓` move between the rate row and each
+  sentence row.
+- `←` / `→` (or `+` / `-`) nudge the rate by 1 Hz, clamped to
+  0.1–100 Hz.
+- `space` toggles the highlighted sentence on or off (the last
+  enabled sentence won't toggle off — set the rate to 0.1 Hz if you
+  want a near-silent lane).
+- `esc` or `enter` returns to the scenarios view.
+
+Edits apply live — every nudge or toggle rebuilds the affected
+driver in place. The motion driver emits TSS1 only and has no
+sentence toggles.
+
 No Python install. No Docker. No admin rights.
 
 ### What you should see

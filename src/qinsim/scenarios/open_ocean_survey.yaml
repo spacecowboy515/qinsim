@@ -2,18 +2,19 @@
 # Qinsy's motion compensation copes with non-trivial roll/pitch and
 # that the depth display handles a bigger trace than the harbour
 # preset (50–80 m walk band).
+#
+# Each driver fans out to its own UDP port — Qinsy demuxes by port.
 
 name: open_ocean_survey
-
-destinations:
-  - host: 127.0.0.1
-    port: 13130
 
 drivers:
 
   gnss_primary:
     kind: gnss
-    rate_hz: 5
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13130
     state:
       latitude: -34.50
       longitude: 152.00
@@ -27,7 +28,10 @@ drivers:
 
   heading_primary:
     kind: heading
-    rate_hz: 10
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13131
     state:
       current_heading_deg: 270.0
       target_heading_deg: 270.0
@@ -36,13 +40,19 @@ drivers:
 
   motion_primary:
     kind: motion
-    rate_hz: 25
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13132
     state:
       sea_state: 3
 
   depth_primary:
     kind: depth
-    rate_hz: 5
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13133
     state:
       depth_m: 65.0
       transducer_offset_m: 0.5
@@ -52,6 +62,9 @@ drivers:
   env_primary:
     kind: env
     rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13134
     state:
       water_temp_c: 14.2
       pressure_bar: 1.018

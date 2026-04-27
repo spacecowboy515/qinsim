@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml  # type: ignore[import-untyped]
+import yaml
 
 VALID_KINDS = ("gnss", "heading", "motion", "depth", "env")
 
@@ -58,18 +58,32 @@ class EffectSpec:
 
 @dataclass
 class DriverSpec:
-    """One driver's full spec — kind, rate, initial state, effects."""
+    """One driver's full spec — kind, rate, destinations, initial state, effects.
+
+    ``destinations`` is per-driver: each sensor lane has its own
+    UDP target (typically a unique port) so a downstream consumer
+    can demux without sniffing payload. The validator resolves a
+    top-level YAML ``destinations`` block into this list when a
+    driver omits its own.
+    """
 
     name: str
     kind: str
     rate_hz: float
+    destinations: list[Destination] = field(default_factory=list)
     state: dict[str, Any] = field(default_factory=dict)
     effects: list[EffectSpec] = field(default_factory=list)
 
 
 @dataclass
 class Config:
-    """Top-level scenario config."""
+    """Top-level scenario config.
+
+    ``destinations`` is an optional default applied to drivers that
+    don't declare their own — handy for "everything to one Qinsy box"
+    YAMLs. The source of truth for routing is always
+    :attr:`DriverSpec.destinations`.
+    """
 
     name: str
     destinations: list[Destination]
@@ -103,13 +117,25 @@ def validate_config(raw: Mapping[str, Any], *, default_name: str = "scenario") -
     if not isinstance(name, str):
         raise ConfigError("name", "must be a string")
 
-    destinations = _validate_destinations(raw.get("destinations"))
-    drivers = _validate_drivers(raw.get("drivers"))
-    return Config(name=name, destinations=destinations, drivers=drivers)
+    # Top-level destinations are optional: they act as a fallback for
+    # drivers that don't declare their own. Validation succeeds with no
+    # top-level block as long as every driver has its own destinations.
+    top_destinations = _validate_destinations(raw.get("destinations"), allow_empty=True)
+    drivers = _validate_drivers(raw.get("drivers"), top_destinations)
+
+    for spec in drivers:
+        if not spec.destinations:
+            raise ConfigError(
+                f"drivers.{spec.name}.destinations",
+                "no destinations resolved — set per-driver or add a top-level fallback",
+            )
+    return Config(name=name, destinations=top_destinations, drivers=drivers)
 
 
-def _validate_destinations(raw: Any) -> list[Destination]:
+def _validate_destinations(raw: Any, *, allow_empty: bool = False) -> list[Destination]:
     if raw is None or raw == []:
+        if allow_empty:
+            return []
         raise ConfigError("destinations", "at least one destination required")
     if not isinstance(raw, list):
         raise ConfigError("destinations", "must be a list")
@@ -128,18 +154,20 @@ def _validate_destinations(raw: Any) -> list[Destination]:
     return out
 
 
-def _validate_drivers(raw: Any) -> list[DriverSpec]:
+def _validate_drivers(raw: Any, top_destinations: list[Destination]) -> list[DriverSpec]:
     if not isinstance(raw, dict) or not raw:
         raise ConfigError("drivers", "must be a non-empty mapping of name -> spec")
     out: list[DriverSpec] = []
     for name, spec in raw.items():
         if not isinstance(name, str) or not name:
             raise ConfigError("drivers", f"driver name must be a non-empty string, got {name!r}")
-        out.append(_validate_driver(name, spec))
+        out.append(_validate_driver(name, spec, top_destinations))
     return out
 
 
-def _validate_driver(name: str, raw: Any) -> DriverSpec:
+def _validate_driver(
+    name: str, raw: Any, top_destinations: list[Destination]
+) -> DriverSpec:
     base = f"drivers.{name}"
     if not isinstance(raw, dict):
         raise ConfigError(base, "must be a mapping")
@@ -161,10 +189,28 @@ def _validate_driver(name: str, raw: Any) -> DriverSpec:
         raise ConfigError(f"{base}.effects", "must be a list")
     effects = [_validate_effect(f"{base}.effects[{i}]", e) for i, e in enumerate(effects_raw)]
 
+    # Per-driver destinations win; missing block falls back to the
+    # top-level list. Copy so a later edit on one driver doesn't bleed
+    # into a sibling that shared the same fallback reference.
+    raw_dests = raw.get("destinations")
+    if raw_dests is None:
+        destinations = list(top_destinations)
+    else:
+        dests_path = f"{base}.destinations"
+        try:
+            destinations = _validate_destinations(raw_dests)
+        except ConfigError as exc:
+            # Re-raise with the driver-scoped path so the operator can
+            # find the offending block.
+            raise ConfigError(
+                exc.path.replace("destinations", dests_path, 1), exc.reason
+            ) from exc
+
     return DriverSpec(
         name=name,
         kind=kind,
         rate_hz=float(rate),
+        destinations=destinations,
         state=dict(state),
         effects=effects,
     )

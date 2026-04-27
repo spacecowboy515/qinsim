@@ -31,6 +31,7 @@ from .status import (
     SENTENCE_CATALOGUE,
     KeyEvent,
     UIState,
+    adjust_all_rates,
     adjust_rate,
     field_count_for,
     make_live,
@@ -164,6 +165,9 @@ def _cmd_serve(args: argparse.Namespace) -> int:
             f"no scenarios found in {args.scenarios_dir} and no path supplied",
             file=sys.stderr,
         )
+        # Double-clicked exe with no scenarios would otherwise close
+        # the console before the operator could read the message.
+        _pause_if_interactive()
         return 2
 
     initial = args.scenario or scenarios[0].path
@@ -252,6 +256,14 @@ def _handle_list_key(
             ui.mode = "config"
             ui.field_idx = 0
         return config, active, started_at
+    if ev.key in ("+", "-"):
+        # Global rate nudge: bump every driver up/down by 1 Hz, clamped
+        # to the same band as the per-driver adjuster. One swap rebuilds
+        # all driver threads at once.
+        delta = 1.0 if ev.key == "+" else -1.0
+        adjust_all_rates(config, delta)
+        registry.swap(config)
+        return config, active, started_at
     if ev.key.isdigit():
         idx = int(ev.key) - 1
         if 0 <= idx < len(scenarios):
@@ -327,13 +339,18 @@ def _cmd_validate(args: argparse.Namespace) -> int:
         return 1
     print(f"OK       {args.scenario}")
     print(f"  name         {config.name}")
-    print(f"  destinations {len(config.destinations)}")
-    for d in config.destinations:
-        print(f"    - {d.host}:{d.port}")
+    if config.destinations:
+        print(f"  default fallback destinations ({len(config.destinations)}):")
+        for d in config.destinations:
+            print(f"    - {d.host}:{d.port}")
     print(f"  drivers      {len(config.drivers)}")
     for ds in config.drivers:
         fx = ", ".join(e.kind for e in ds.effects) or "none"
-        print(f"    - {ds.name:<16} kind={ds.kind:<8} rate={ds.rate_hz:>5.1f}Hz  effects=[{fx}]")
+        dests = ", ".join(f"{d.host}:{d.port}" for d in ds.destinations)
+        print(
+            f"    - {ds.name:<16} kind={ds.kind:<8} rate={ds.rate_hz:>5.1f}Hz"
+            f"  dest=[{dests}]  effects=[{fx}]"
+        )
     return 0
 
 
@@ -362,19 +379,50 @@ def _bootstrap_scenarios(target_dir: Path) -> None:
     if target_dir.exists() and any(target_dir.glob("*.yaml")):
         return
     target_dir.mkdir(parents=True, exist_ok=True)
+
+    yamls = list(_iter_bundled_yamls())
+    if not yamls:
+        log.warning(
+            "no bundled scenarios found — drop a YAML into %s and rerun",
+            target_dir,
+        )
+        return
+    for src in yamls:
+        dest = target_dir / src.name
+        if dest.exists():
+            continue
+        shutil.copyfile(src, dest)
+
+
+def _iter_bundled_yamls() -> list[Path]:
+    """Find every bundled scenario YAML, frozen-build-aware.
+
+    PyInstaller's ``importlib.resources`` backend does not always
+    enumerate data-file siblings of a package via ``iterdir``, so a
+    naive ``resources.files(pkg).iterdir()`` walk silently misses the
+    YAMLs we collected via ``collect_data_files`` in the spec. When
+    running frozen we can read the same files directly out of
+    ``sys._MEIPASS``, which always reflects the on-disk extraction.
+    """
+    if getattr(sys, "frozen", False):
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            bundled = Path(meipass) / "qinsim" / "scenarios"
+            if bundled.is_dir():
+                return sorted(bundled.glob("*.yaml"))
+
+    # Source / dev install — importlib.resources is the right path.
     try:
         bundle = resources.files(_BUNDLE_PACKAGE)
     except (ModuleNotFoundError, FileNotFoundError):
-        # Pre-bundling dev environments: the package may not have any
-        # bundled scenarios yet. That's fine — operator has to supply
-        # their own YAML for the first run.
-        return
+        return []
+    out: list[Path] = []
     for entry in bundle.iterdir():
-        name = entry.name
-        if not name.endswith(".yaml"):
-            continue
-        dest = target_dir / name
-        if dest.exists():
+        if not entry.name.endswith(".yaml"):
             continue
         with resources.as_file(entry) as src_path:
-            shutil.copyfile(src_path, dest)
+            # ``as_file`` may yield a temp path that disappears once
+            # the context exits, so copy/cache the path eagerly. The
+            # frozen branch above sidesteps this entirely.
+            out.append(Path(src_path))
+    return out

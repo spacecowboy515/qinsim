@@ -2,18 +2,21 @@
 # every driver online, no fault injection. If qinsim is wired
 # correctly to a Qinsy box this should produce a clean stable trace
 # in the Online and Replay panels with no flagged anomalies.
+#
+# Each driver fans out to its own UDP port — Qinsy demuxes by port,
+# not by inspecting payload, so a one-port-per-sensor layout is the
+# cleanest way to wire the receiving side.
 
 name: harbour_rtk_fixed
-
-destinations:
-  - host: 127.0.0.1
-    port: 13130
 
 drivers:
 
   gnss_primary:
     kind: gnss
-    rate_hz: 10
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13130
     state:
       latitude: -33.85
       longitude: 151.21
@@ -27,7 +30,10 @@ drivers:
 
   heading_primary:
     kind: heading
-    rate_hz: 20
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13131
     state:
       current_heading_deg: 90.0
       target_heading_deg: 90.0
@@ -36,13 +42,19 @@ drivers:
 
   motion_primary:
     kind: motion
-    rate_hz: 25
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13132
     state:
       sea_state: 1
 
   depth_primary:
     kind: depth
-    rate_hz: 5
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13133
     state:
       depth_m: 18.5
       transducer_offset_m: 0.5
@@ -52,6 +64,9 @@ drivers:
   env_primary:
     kind: env
     rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13134
     state:
       water_temp_c: 18.5
       pressure_bar: 1.013

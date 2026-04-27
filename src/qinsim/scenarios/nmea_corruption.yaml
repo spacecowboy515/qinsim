@@ -2,18 +2,19 @@
 # stream. Exercises Qinsy's NMEA-error path: how the template surfaces
 # rejected sentences, whether downstream computations cope with rate
 # loss, and whether the operator gets useful diagnostics.
+#
+# Each driver fans out to its own UDP port — Qinsy demuxes by port.
 
 name: nmea_corruption
-
-destinations:
-  - host: 127.0.0.1
-    port: 13130
 
 drivers:
 
   gnss_primary:
     kind: gnss
-    rate_hz: 10
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13130
     state:
       latitude: -33.85
       longitude: 151.21
@@ -32,7 +33,10 @@ drivers:
 
   heading_primary:
     kind: heading
-    rate_hz: 20
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13131
     state:
       current_heading_deg: 90.0
       target_heading_deg: 90.0
@@ -46,7 +50,10 @@ drivers:
 
   motion_primary:
     kind: motion
-    rate_hz: 25
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13132
     state:
       sea_state: 1
     effects:
@@ -57,7 +64,10 @@ drivers:
 
   depth_primary:
     kind: depth
-    rate_hz: 5
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13133
     state:
       depth_m: 18.5
       transducer_offset_m: 0.5
@@ -70,5 +80,8 @@ drivers:
   env_primary:
     kind: env
     rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13134
     state:
       water_temp_c: 18.5

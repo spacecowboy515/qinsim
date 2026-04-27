@@ -20,8 +20,22 @@ you can exercise Qinsy's error paths.
    of scenarios it found.
 4. Press `1`–`9` to load a scenario from the picker. `r` restarts the
    current one. `q` quits cleanly.
-5. Configure Qinsy to read NMEA over UDP on `127.0.0.1:13130` for each
-   driver lane (or whatever host:port you set in the YAML).
+5. Configure Qinsy to read NMEA over UDP. Each sensor lane has its
+   own port so Qinsy can demux by port instead of sniffing payload.
+   The bundled scenarios use `127.0.0.1` with one incrementing port
+   per driver:
+
+   | Driver | Port | Default sentences |
+   |---|---|---|
+   | `gnss_primary` | 13130 | GGA, RMC, VTG (+ GST, ZDA where set) |
+   | `heading_primary` | 13131 | HDT |
+   | `motion_primary` | 13132 | TSS1 |
+   | `depth_primary` | 13133 | DPT |
+   | `env_primary` | 13134 | MTW |
+
+   Edit the per-driver `destinations:` block in the YAML to point at
+   your Qinsy box(es) — multiple destinations per driver are
+   supported (same bytes, multiple wires).
 
 ### Tweaking a driver live
 
@@ -30,19 +44,23 @@ inline with its name. To change a rate or toggle a sentence on the
 fly:
 
 - `↑` / `↓` move the cursor up and down the drivers list.
+- `+` / `-` from the drivers list nudges **every** driver's rate by
+  1 Hz at once — handy for sanity-checking a fan-out at a higher
+  rate without entering each driver in turn.
 - `enter` opens a config panel for the highlighted driver.
 - In config mode: `↑` / `↓` move between the rate row and each
   sentence row.
 - `←` / `→` (or `+` / `-`) nudge the rate by 1 Hz, clamped to
-  0.1–100 Hz.
+  1–25 Hz.
 - `space` toggles the highlighted sentence on or off (the last
-  enabled sentence won't toggle off — set the rate to 0.1 Hz if you
-  want a near-silent lane).
+  enabled sentence won't toggle off).
 - `esc` or `enter` returns to the scenarios view.
 
 Edits apply live — every nudge or toggle rebuilds the affected
-driver in place. The motion driver emits TSS1 only and has no
-sentence toggles.
+driver in place. Bundled scenarios all start at 1 Hz across the
+board so first-run output is calm and easy to read; nudge up from
+there to whatever Qinsy expects. The motion driver emits TSS1 only
+and has no sentence toggles.
 
 No Python install. No Docker. No admin rights.
 
@@ -52,11 +70,11 @@ The first run creates `scenarios\` next to the exe and loads
 `harbour_rtk_fixed.yaml`. Within ~2 seconds the drivers table fills in:
 
 ```
-gnss_primary    gnss     10.0  10.0  $GPGGA,143052.10,3351.0000,S,15112.6000,E,4,12,...
-heading_primary heading  20.0  20.0  $GPHDT,90.00,T*34
-motion_primary  motion   25.0  25.0  :000000  0007G 0005  0020
-depth_primary   depth     5.0   5.0  $SDDPT,18.5,0.5,200.0*64
-env_primary     env       1.0   1.0  $YXMTW,18.5,C*1E
+gnss_primary    gnss     1.0   1.0   $GPGGA,143052.10,3351.0000,S,15112.6000,E,4,12,...
+heading_primary heading  1.0   1.0   $GPHDT,90.00,T*34
+motion_primary  motion   1.0   1.0   :000000  0007G 0005  0020
+depth_primary   depth    1.0   1.0   $SDDPT,18.5,0.5,200.0*64
+env_primary     env      1.0   1.0   $YXMTW,18.5,C*1E
 ```
 
 If the rates stay at 0/s after a few seconds, something's wrong — see

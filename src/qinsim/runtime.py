@@ -58,6 +58,7 @@ class DriverHandle:
     name: str
     kind: str
     rate_hz: float
+    destinations: list[Destination]
     driver: Driver
     channel: OutputChannel
     thread: threading.Thread
@@ -85,8 +86,12 @@ class ThreadedRegistry:
         self.stop()
         with self._lock:
             self._transport = UdpTransport()
+            # Each driver routes via its own destinations list — that's
+            # what gives every sensor lane a distinct UDP port. The
+            # config validator has already filled in the top-level
+            # fallback for any driver that didn't declare its own.
             self._handles = [
-                self._spawn(spec, config.destinations, self._transport)
+                self._spawn(spec, spec.destinations, self._transport)
                 for spec in config.drivers
             ]
             self._config = config
@@ -165,6 +170,7 @@ class ThreadedRegistry:
             name=spec.name,
             kind=spec.kind,
             rate_hz=spec.rate_hz,
+            destinations=list(destinations),
             driver=driver,
             channel=channel,
             thread=threading.Thread(),  # placeholder, replaced below

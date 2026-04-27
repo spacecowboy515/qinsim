@@ -44,8 +44,9 @@ def test_minimal_valid_config_round_trips() -> None:
 @pytest.mark.parametrize(
     "mutation,expected_path_prefix",
     [
-        # destinations
-        (lambda r: r.update(destinations=[]), "destinations"),
+        # destinations — top-level may be empty, but then the per-driver
+        # resolution fails with a driver-scoped path.
+        (lambda r: r.update(destinations=[]), "drivers.gnss_primary.destinations"),
         (lambda r: r.update(destinations="nope"), "destinations"),
         (lambda r: r["destinations"][0].pop("host"), "destinations[0].host"),
         (lambda r: r["destinations"][0].update(port=0), "destinations[0].port"),
@@ -60,6 +61,10 @@ def test_minimal_valid_config_round_trips() -> None:
          "drivers.gnss_primary.state"),
         (lambda r: r["drivers"]["gnss_primary"].update(effects="nope"),
          "drivers.gnss_primary.effects"),
+        # per-driver destinations malformed — error path is driver-scoped
+        (lambda r: r["drivers"]["gnss_primary"].update(
+            destinations=[{"host": "1.2.3.4"}]),
+         "drivers.gnss_primary.destinations"),
         # effect malformed
         (lambda r: r["drivers"]["gnss_primary"].update(effects=[{"prob": 0.1}]),
          "drivers.gnss_primary.effects[0].kind"),
@@ -70,7 +75,35 @@ def test_invalid_config_raises_with_path(mutation, expected_path_prefix) -> None
     mutation(raw)
     with pytest.raises(ConfigError) as exc:
         validate_config(raw)
-    assert exc.value.path.startswith(expected_path_prefix)
+    assert exc.value.path.startswith(expected_path_prefix), (
+        f"got path {exc.value.path!r}, expected prefix {expected_path_prefix!r}"
+    )
+
+
+def test_per_driver_destinations_override_top_level() -> None:
+    raw = _minimal_raw()
+    raw["drivers"]["gnss_primary"]["destinations"] = [
+        {"host": "10.0.0.1", "port": 5000},
+    ]
+    cfg = validate_config(raw)
+    assert cfg.drivers[0].destinations[0].host == "10.0.0.1"
+    assert cfg.drivers[0].destinations[0].port == 5000
+
+
+def test_top_level_destinations_used_as_fallback() -> None:
+    raw = _minimal_raw()
+    # gnss_primary has no destinations of its own — should inherit
+    # the top-level fallback.
+    cfg = validate_config(raw)
+    assert cfg.drivers[0].destinations[0].port == 13130
+
+
+def test_no_destinations_anywhere_errors_per_driver() -> None:
+    raw = _minimal_raw()
+    raw.pop("destinations")
+    with pytest.raises(ConfigError) as exc:
+        validate_config(raw)
+    assert exc.value.path == "drivers.gnss_primary.destinations"
 
 
 def test_effect_spec_to_dict_includes_kind_and_params() -> None:

@@ -10,13 +10,24 @@
 # CI builds the same way on tag — see .github/workflows/release.yml.
 
 # -*- mode: python ; coding: utf-8 -*-
+import os
+import sys
+
 from PyInstaller.utils.hooks import collect_data_files
+
+# pathex= below tells PyInstaller's Analysis where to import from, but
+# the spec's top-level Python (this file) runs *before* Analysis takes
+# effect — so collect_data_files("qinsim", ...) silently returns an
+# empty list because qinsim isn't on sys.path yet. Adding src/ here
+# is what makes the YAML data files actually bundle.
+sys.path.insert(0, os.path.abspath("src"))
 
 
 # Bundle every YAML under qinsim/scenarios/ so importlib.resources can
 # extract them on first run. Anything else (templates, sample configs)
 # would also flow through here if added later.
 datas = collect_data_files("qinsim", includes=["scenarios/*.yaml"])
+assert datas, "collect_data_files found no scenarios — fix sys.path or spec"
 
 
 block_cipher = None

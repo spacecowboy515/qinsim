@@ -29,7 +29,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .config import Config, DriverSpec, ScenarioEntry
+from .config import Config, Destination, DriverSpec, ScenarioEntry
 from .runtime import ThreadedRegistry
 
 # Update cadence — fast enough for "live" feel, slow enough that
@@ -112,11 +112,11 @@ def start_keypress_thread(events: queue.Queue[KeyEvent]) -> threading.Event:
                 continue
             ch = msvcrt.getwch()
             if ch in ("\x00", "\xe0"):
-                # Two-char extended sequence — read the discriminator
-                # and map it. Unknown extended keys are dropped.
-                if not msvcrt.kbhit():
-                    # Lead byte without a follow-up; rare, ignore.
-                    continue
+                # Two-char extended sequence — the lead byte guarantees
+                # a discriminator follows in the same input event, so
+                # read it unconditionally. (An earlier kbhit() guard
+                # raced with the console buffer and silently dropped
+                # arrow presses.) Unknown extended keys are dropped.
                 disc = msvcrt.getwch()
                 mapped = arrow_keys.get(disc)
                 if mapped is not None:
@@ -177,18 +177,29 @@ def toggle_sentence(spec: DriverSpec, sentence: str) -> None:
     spec.state["sentences"] = current
 
 
-def adjust_rate(spec: DriverSpec, delta_hz: float) -> None:
-    """Bump ``spec.rate_hz`` by ``delta_hz``, clamped to a sensible band.
+RATE_MIN_HZ = 1.0
+RATE_MAX_HZ = 25.0
 
-    Lower bound 0.1 Hz so a swap doesn't divide by zero on the period
-    calculation; upper bound 100 Hz to keep one operator-thumb mishap
-    from hammering Qinsy with nonsense rates.
+
+def adjust_rate(spec: DriverSpec, delta_hz: float) -> None:
+    """Bump ``spec.rate_hz`` by ``delta_hz``, clamped to 1-25 Hz.
+
+    Lower bound keeps the period calculation safe and matches Qinsy's
+    typical 1 Hz minimum input expectation; upper bound caps at 25 Hz
+    because no NMEA driver in this sim has a sensible reason to go
+    faster and one fat-thumb keystroke shouldn't hammer the consumer.
     """
-    new_rate = max(0.1, min(100.0, spec.rate_hz + delta_hz))
+    new_rate = max(RATE_MIN_HZ, min(RATE_MAX_HZ, spec.rate_hz + delta_hz))
     # ``DriverSpec`` is a regular dataclass (mutable) so direct
     # assignment is fine — and far simpler than constructing a fresh
     # one. The handle gets rebuilt via swap() right after.
-    spec.rate_hz = round(new_rate, 1)
+    spec.rate_hz = round(new_rate)
+
+
+def adjust_all_rates(config: Config, delta_hz: float) -> None:
+    """Bump every driver's rate by ``delta_hz`` (same clamp as ``adjust_rate``)."""
+    for spec in config.drivers:
+        adjust_rate(spec, delta_hz)
 
 
 # ---------------------------------------------------------------------
@@ -196,14 +207,14 @@ def adjust_rate(spec: DriverSpec, delta_hz: float) -> None:
 # ---------------------------------------------------------------------
 
 
-def _format_destinations(config: Config | None) -> str:
+def _format_handle_destinations(destinations: list[Destination]) -> str:
     """Return ``"host:port (UDP)"`` (with ``+N`` if more than one)."""
-    if config is None or not config.destinations:
+    if not destinations:
         return "—"
-    primary = config.destinations[0]
+    primary = destinations[0]
     base = f"{primary.host}:{primary.port} (UDP)"
-    if len(config.destinations) > 1:
-        base += f" +{len(config.destinations) - 1}"
+    if len(destinations) > 1:
+        base += f" +{len(destinations) - 1}"
     return base
 
 
@@ -249,8 +260,6 @@ def render(
     drivers.add_column("dropped", justify="right")
     drivers.add_column("last sentence", overflow="ellipsis", no_wrap=True, max_width=48)
 
-    dest_str = _format_destinations(config)
-
     for idx, h in enumerate(handles):
         snap = h.channel.metrics.snapshot()
         last = h.last_emit[-1].rstrip().decode("ascii", errors="replace") if h.last_emit else ""
@@ -262,7 +271,7 @@ def render(
             Text(marker, style=row_style),
             Text(h.name, style=row_style),
             h.kind,
-            dest_str,
+            _format_handle_destinations(h.destinations),
             f"{h.rate_hz:.1f}",
             f"{float(snap['lines_per_sec']):.1f}",
             Text(f"{h.slip_ms:.1f}", style=slip_style),
@@ -355,6 +364,8 @@ def _list_footer() -> Text:
         (" select driver · ", "dim"),
         ("enter", "bold"),
         (" configure · ", "dim"),
+        ("+/-", "bold"),
+        (" all rates · ", "dim"),
         ("r", "bold"),
         (" restart · ", "dim"),
         ("q", "bold"),

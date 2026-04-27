@@ -1,18 +1,19 @@
 # Harbour scenario + 5-second silent windows every 30 seconds on the
 # GNSS channel. Tests Qinsy's gap detection, time-coast behaviour, and
 # whether motion / heading streams remain coherent through the gap.
+#
+# Each driver fans out to its own UDP port — Qinsy demuxes by port.
 
 name: dropout_burst
-
-destinations:
-  - host: 127.0.0.1
-    port: 13130
 
 drivers:
 
   gnss_primary:
     kind: gnss
-    rate_hz: 10
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13130
     state:
       latitude: -33.85
       longitude: 151.21
@@ -33,7 +34,10 @@ drivers:
 
   heading_primary:
     kind: heading
-    rate_hz: 20
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13131
     state:
       current_heading_deg: 90.0
       target_heading_deg: 90.0
@@ -42,13 +46,19 @@ drivers:
 
   motion_primary:
     kind: motion
-    rate_hz: 25
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13132
     state:
       sea_state: 1
 
   depth_primary:
     kind: depth
-    rate_hz: 5
+    rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13133
     state:
       depth_m: 18.5
       transducer_offset_m: 0.5
@@ -56,5 +66,8 @@ drivers:
   env_primary:
     kind: env
     rate_hz: 1
+    destinations:
+      - host: 127.0.0.1
+        port: 13134
     state:
       water_temp_c: 18.5

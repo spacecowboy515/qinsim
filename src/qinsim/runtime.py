@@ -31,8 +31,9 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 
 from ._core.channel import OutputChannel
 from ._core.effects import effect_from_dict
@@ -61,7 +62,7 @@ class DriverHandle:
     channel: OutputChannel
     thread: threading.Thread
     stop_event: threading.Event
-    last_emit: List[bytes] = field(default_factory=list)
+    last_emit: list[bytes] = field(default_factory=list)
     last_emit_ts: float = 0.0
     slip_ms: float = 0.0
 
@@ -70,10 +71,10 @@ class ThreadedRegistry:
     """Owns the running drivers, their channels, and the shared transport."""
 
     def __init__(self) -> None:
-        self._transport: Optional[UdpTransport] = None
-        self._handles: List[DriverHandle] = []
+        self._transport: UdpTransport | None = None
+        self._handles: list[DriverHandle] = []
         self._lock = threading.Lock()
-        self._config: Optional[Config] = None
+        self._config: Config | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -115,13 +116,13 @@ class ThreadedRegistry:
         """Stop current drivers, start the new config. Used by the scenario picker."""
         self.start(config)
 
-    def handles(self) -> List[DriverHandle]:
+    def handles(self) -> list[DriverHandle]:
         """Return a shallow copy of live handles for the status panel."""
         with self._lock:
             return list(self._handles)
 
     @property
-    def config(self) -> Optional[Config]:
+    def config(self) -> Config | None:
         return self._config
 
     # ------------------------------------------------------------------
@@ -253,7 +254,7 @@ def _build_driver(spec: DriverSpec, channel: OutputChannel) -> Driver:
     raise ValueError(f"unknown driver kind: {spec.kind}")
 
 
-def _coerce_state(cls: type, raw: Dict[str, Any]) -> Any:
+def _coerce_state(cls: type, raw: dict[str, Any]) -> Any:
     """Build ``cls(...)`` from ``raw``, ignoring keys the dataclass doesn't know.
 
     The state YAML carries some operator-side keys (``sentences``,
@@ -267,16 +268,16 @@ def _coerce_state(cls: type, raw: Dict[str, Any]) -> Any:
     return cls(**filtered)
 
 
-def _coerce_env_state(raw: Dict[str, Any]) -> EnvState:
+def _coerce_env_state(raw: dict[str, Any]) -> EnvState:
     """EnvState needs xdr_quads coerced from list-of-dict to list-of-XdrMeasurement."""
     from ._core.formatters.nmea_xdr import XdrMeasurement
 
     fields = {f for f in EnvState.__dataclass_fields__}
-    filtered: Dict[str, Any] = {k: v for k, v in raw.items() if k in fields}
+    filtered: dict[str, Any] = {k: v for k, v in raw.items() if k in fields}
     quads_raw = filtered.get("xdr_quads", [])
     if not isinstance(quads_raw, list):
         raise ValueError("env.state.xdr_quads must be a list")
-    quads: List[XdrMeasurement] = []
+    quads: list[XdrMeasurement] = []
     for i, entry in enumerate(quads_raw):
         if not isinstance(entry, dict):
             raise ValueError(f"env.state.xdr_quads[{i}] must be a mapping")

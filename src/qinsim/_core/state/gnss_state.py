@@ -14,14 +14,13 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
 
 # GST noise profile presets keyed by NMEA fix quality.
 # Structure: (std_major_m, std_minor_m, orientation_deg, sigma_lat_m,
 #             sigma_lon_m, sigma_alt_m, _unused). Ported verbatim from
 # Meridian's ``GST_PROFILES`` — values reflect plausible RTK/DGPS/SPS
 # uncertainty bands.
-GST_PROFILES: dict[int, Tuple[float, float, float, float, float, float, float]] = {
+GST_PROFILES: dict[int, tuple[float, float, float, float, float, float, float]] = {
     0: (99.9, 99.9, 99.9, 0.0, 99.9, 99.9, 99.9),
     1: (10.0, 8.0, 6.0, 45.0, 7.5, 5.5, 12.0),
     2: (2.5, 2.0, 1.5, 30.0, 1.8, 1.2, 3.0),
@@ -31,10 +30,10 @@ GST_PROFILES: dict[int, Tuple[float, float, float, float, float, float, float]] 
 
 
 def _default_time() -> datetime.datetime:
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
-def _default_prns() -> List[str]:
+def _default_prns() -> list[str]:
     return ["01", "04", "07", "10", "13", "16", "19", "22"]
 
 
@@ -64,8 +63,8 @@ class GnssState:
 
     # GSA / GST
     mode_gsa_1: str = "A"
-    satellite_prns: List[str] = field(default_factory=_default_prns)
-    gst_profile: Tuple[float, float, float, float, float, float, float] = GST_PROFILES[1]
+    satellite_prns: list[str] = field(default_factory=_default_prns)
+    gst_profile: tuple[float, float, float, float, float, float, float] = GST_PROFILES[1]
 
     # Set by ``FOLLOW_REPLAYER`` mode when the latest poll of the
     # replayer's /position/current endpoint returned no fresh data
@@ -81,4 +80,4 @@ class GnssState:
     # ID (``GN`` for multi-constellation, ``IN`` for integrated nav),
     # so operators override per-device when deploying against a real
     # template.
-    talker_id: Optional[str] = None
+    talker_id: str | None = None

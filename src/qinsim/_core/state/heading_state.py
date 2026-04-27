@@ -13,7 +13,6 @@ without fabricating irrelevant GNSS fields on the gyro side.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -26,7 +25,7 @@ class HeadingState:
     # Manual target heading. ``None`` means "hold current" — the driver does
     # not try to steer. The MANUAL mode of HeadingDriver consumes this field;
     # PATH mode ignores it and uses the cursor's lookahead bearing instead.
-    target_heading_deg: Optional[float] = None
+    target_heading_deg: float | None = None
 
     # Vessel speed, knots. Only used in PATH mode to advance the cursor.
     speed_knots: float = 0.0
@@ -57,4 +56,4 @@ class HeadingState:
     # Real-world integrations vary: a gyrocompass sends ``$HEHDT``, an
     # INS sends ``$INHDT``, a fluxgate sends ``$HCHDM``. Operators
     # override to match the Qinsy template filter.
-    talker_id: Optional[str] = None
+    talker_id: str | None = None

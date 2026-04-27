@@ -9,16 +9,15 @@ sees and processes through its template's smoothing/quality logic.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import List, Optional, Sequence
+from enum import StrEnum
 
 from .._core.channel import OutputChannel
 from .._core.formatters.nmea_hdt import build_hdg, build_hdm, build_hdt
 from .._core.geo import KNOTS_TO_MPS, normalize_angle_diff
 from .._core.path_cursor import PathCursor
 from .._core.state.heading_state import HeadingState
-
 
 # Default talker IDs per sentence — match NMEA 0183 convention. A
 # state with ``talker_id`` set overrides these uniformly.
@@ -30,7 +29,7 @@ def _talker_for(state: HeadingState, sentence: str) -> str:
 
 
 def _magnetic_heading(state: HeadingState) -> float:
-    """Return magnetic heading = true heading − variation, folded to [0, 360)."""
+    """Return magnetic heading = true heading minus variation, folded to [0, 360)."""
     return (state.current_heading_deg - state.variation_deg) % 360.0
 
 
@@ -44,7 +43,7 @@ _HEADING_BUILDERS = {
 }
 
 
-class HeadingMode(str, Enum):
+class HeadingMode(StrEnum):
     """How the driver picks the steering target each tick."""
 
     MANUAL = "manual"   # state.target_heading_deg is the steering target
@@ -61,7 +60,7 @@ class HeadingDriver:
     state: HeadingState
     channel: OutputChannel
     mode: HeadingMode = HeadingMode.MANUAL
-    path_cursor: Optional[PathCursor] = None
+    path_cursor: PathCursor | None = None
     sentences: Sequence[str] = field(default_factory=lambda: ["HDT"])
 
     def __post_init__(self) -> None:
@@ -76,10 +75,11 @@ class HeadingDriver:
                 f"supported: {sorted(_HEADING_BUILDERS)}"
             )
 
-    def tick(self, dt_seconds: float) -> List[bytes]:
+    def tick(self, dt_seconds: float) -> list[bytes]:
         if dt_seconds < 0:
             raise ValueError("dt_seconds must be non-negative")
 
+        target: float | None
         if self.mode is HeadingMode.PATH:
             self._advance_on_path(dt_seconds)
             target = self._path_target_bearing()
@@ -91,7 +91,7 @@ class HeadingDriver:
 
         self.state.current_heading_deg = self.state.current_heading_deg % 360.0
 
-        emitted: List[bytes] = []
+        emitted: list[bytes] = []
         for key in self.sentences:
             sentence = _HEADING_BUILDERS[key](self.state)
             data = sentence.encode("ascii") + _LINE_TERMINATOR

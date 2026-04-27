@@ -9,14 +9,14 @@ of a clock — the runtime calls ``tick`` at the configured period.
 
 from __future__ import annotations
 
-from typing import List, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
 class Driver(Protocol):
     """Minimum surface every qinsim driver implements."""
 
-    def tick(self, dt_seconds: float) -> List[bytes]:
+    def tick(self, dt_seconds: float) -> list[bytes]:
         """Advance state by ``dt_seconds`` and emit one tick of sentences.
 
         Returns the bytes written to the channel, in emission order, so

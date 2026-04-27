@@ -24,11 +24,11 @@ import sys
 import time
 from importlib import resources
 from pathlib import Path
-from typing import List, Optional
 
-from .config import Config, ScenarioEntry, load_config, list_scenarios
+from .config import Config, ScenarioEntry, list_scenarios, load_config
 from .runtime import ThreadedRegistry
 from .status import (
+    SENTENCE_CATALOGUE,
     KeyEvent,
     UIState,
     adjust_rate,
@@ -37,9 +37,7 @@ from .status import (
     render,
     start_keypress_thread,
     toggle_sentence,
-    SENTENCE_CATALOGUE,
 )
-
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +51,7 @@ _BUNDLE_PACKAGE = "qinsim.scenarios"
 _LOCAL_SCENARIO_DIR = Path("scenarios")
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     # Wrap the whole entrypoint so a startup error doesn't dump the
     # operator out of a double-clicked console window before they can
     # read it. The pause is only triggered when stdin is a real TTY —
@@ -73,7 +71,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 1
 
 
-def _main_inner(argv: Optional[List[str]]) -> int:
+def _main_inner(argv: list[str] | None) -> int:
     args = _parse_args(argv)
     logging.basicConfig(
         level=getattr(logging, args.log_level.upper(), logging.INFO),
@@ -104,7 +102,7 @@ def _pause_if_interactive() -> None:
         pass
 
 
-def _parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="qinsim",
         description="Minimal Qinsy NMEA simulator — single exe, UDP, fault injection.",
@@ -178,7 +176,7 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     registry = ThreadedRegistry()
     registry.start(config)
 
-    events: "queue.Queue[KeyEvent]" = queue.Queue()
+    events: queue.Queue[KeyEvent] = queue.Queue()
     keypress_stop = start_keypress_thread(events)
 
     started_at = time.monotonic()
@@ -227,12 +225,12 @@ def _cmd_serve(args: argparse.Namespace) -> int:
 def _handle_list_key(
     ev: KeyEvent,
     registry: ThreadedRegistry,
-    scenarios: List[ScenarioEntry],
+    scenarios: list[ScenarioEntry],
     config: Config,
     active: Path,
     started_at: float,
     ui: UIState,
-) -> tuple:
+) -> tuple[Config, Path, float]:
     """Process one keypress while the TUI is in list (default) mode.
 
     Returns ``(config, active, started_at)`` — possibly mutated by a

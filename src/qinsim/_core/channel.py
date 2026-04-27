@@ -16,16 +16,17 @@ Threading model:
 
 from __future__ import annotations
 
+import contextlib
 import queue
 import threading
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Deque, Dict, List, Optional, Tuple
+from typing import Any
 
 from .effects import ChannelEffect, EmitContext
 from .transports.udp import UdpTransport
-
 
 # Subscribers are plain callables; there is no need for a Protocol class. A
 # type alias makes the signature explicit at the edges where it matters.
@@ -47,9 +48,9 @@ class OutputMetrics:
     # separate from total_lines so a fault-injection run still reports
     # accurate on-the-wire traffic.
     dropped_by_effect: int = 0
-    last_error: Optional[str] = None
+    last_error: str | None = None
     last_sent_ts: float = 0.0
-    _events: Deque[Tuple[float, int, int]] = field(default_factory=deque)
+    _events: deque[tuple[float, int, int]] = field(default_factory=deque)
 
     def record_event(self, now: float, nbytes: int, nlines: int) -> None:
         self.total_bytes += nbytes
@@ -69,7 +70,7 @@ class OutputMetrics:
         while self._events and self._events[0][0] < horizon:
             self._events.popleft()
 
-    def snapshot(self) -> Dict[str, object]:
+    def snapshot(self) -> dict[str, Any]:
         """Return a presentation-ready dict of the current metrics."""
         now = time.monotonic()
         self._trim(now)
@@ -113,11 +114,11 @@ class OutputChannel:
         self._dest_ip = dest_ip
         self._dest_port = dest_port
 
-        self._queue: "queue.Queue[Optional[bytes]]" = queue.Queue(maxsize=queue_size)
-        self._subs: List[OutputSubscriber] = []
+        self._queue: queue.Queue[bytes | None] = queue.Queue(maxsize=queue_size)
+        self._subs: list[OutputSubscriber] = []
         self._subs_lock = threading.Lock()
 
-        self._effects: List[ChannelEffect] = []
+        self._effects: list[ChannelEffect] = []
         self._effects_lock = threading.Lock()
 
         self.metrics = OutputMetrics()
@@ -139,11 +140,8 @@ class OutputChannel:
                 self._subs.append(sub)
 
     def remove_subscriber(self, sub: OutputSubscriber) -> None:
-        with self._subs_lock:
-            try:
-                self._subs.remove(sub)
-            except ValueError:
-                pass
+        with self._subs_lock, contextlib.suppress(ValueError):
+            self._subs.remove(sub)
 
     def add_effect(self, effect: ChannelEffect) -> None:
         """Append ``effect`` to the channel's effects chain.
@@ -155,17 +153,14 @@ class OutputChannel:
             self._effects.append(effect)
 
     def remove_effect(self, effect: ChannelEffect) -> None:
-        with self._effects_lock:
-            try:
-                self._effects.remove(effect)
-            except ValueError:
-                pass
+        with self._effects_lock, contextlib.suppress(ValueError):
+            self._effects.remove(effect)
 
     def clear_effects(self) -> None:
         with self._effects_lock:
             self._effects.clear()
 
-    def effects(self) -> List[ChannelEffect]:
+    def effects(self) -> list[ChannelEffect]:
         """Return a shallow copy of the current effects chain."""
         with self._effects_lock:
             return list(self._effects)
@@ -189,10 +184,8 @@ class OutputChannel:
         self._running = False
         # None is the wake-up sentinel; the worker exits its loop on seeing
         # it (or on the next get() timeout, whichever comes first).
-        try:
+        with contextlib.suppress(queue.Full):
             self._queue.put_nowait(None)
-        except queue.Full:
-            pass
         if self._worker.is_alive():
             self._worker.join(timeout=1.0)
 
@@ -223,8 +216,10 @@ class OutputChannel:
                     dest_ip=self._dest_ip,
                     dest_port=self._dest_port,
                 )
-                payload: Optional[bytes] = data
+                payload: bytes | None = data
                 for eff in effects:
+                    if payload is None:
+                        break
                     try:
                         payload = eff.apply(payload, ctx)
                     except Exception as exc:
@@ -233,8 +228,6 @@ class OutputChannel:
                         # unchanged — preferable to dropping a live stream
                         # because a fault helper raised.
                         self.metrics.record_error(exc)
-                        break
-                    if payload is None:
                         break
                 if payload is None:
                     self.metrics.dropped_by_effect += 1
@@ -250,11 +243,9 @@ class OutputChannel:
             with self._subs_lock:
                 subs = list(self._subs)
             for sub in subs:
-                try:
+                # Subscriber errors are isolated — a broken terminal
+                # must not take down the pipeline or other subscribers.
+                with contextlib.suppress(Exception):
                     sub(data, now)
-                except Exception:
-                    # Subscriber errors are isolated — a broken terminal
-                    # must not take down the pipeline or other subscribers.
-                    pass
 
             self.metrics.record_event(now, len(data), 1)

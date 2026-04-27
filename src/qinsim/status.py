@@ -20,9 +20,8 @@ from __future__ import annotations
 import queue
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 from rich.console import Group
 from rich.live import Live
@@ -33,7 +32,6 @@ from rich.text import Text
 from .config import Config, DriverSpec, ScenarioEntry
 from .runtime import ThreadedRegistry
 
-
 # Update cadence — fast enough for "live" feel, slow enough that
 # rendering doesn't fight the driver threads for the GIL.
 _REFRESH_HZ = 5.0
@@ -43,7 +41,7 @@ _REFRESH_HZ = 5.0
 # config panel uses this to render the toggle list. Motion is TSS1-only
 # at the formatter layer — there is no toggle for it, so it's omitted
 # here and the config panel shows "(fixed: TSS1)" instead.
-SENTENCE_CATALOGUE: Dict[str, Tuple[str, ...]] = {
+SENTENCE_CATALOGUE: dict[str, tuple[str, ...]] = {
     "gnss": ("GGA", "RMC", "VTG", "GLL", "GSA", "GSV", "GST", "ZDA", "HDT"),
     "heading": ("HDT", "HDM", "HDG"),
     "depth": ("DPT", "DBT"),
@@ -52,7 +50,7 @@ SENTENCE_CATALOGUE: Dict[str, Tuple[str, ...]] = {
 
 # Default sentence sets used when a driver spec doesn't list any —
 # matches the per-driver factory defaults in :mod:`qinsim.drivers`.
-_DEFAULT_SENTENCES: Dict[str, Tuple[str, ...]] = {
+_DEFAULT_SENTENCES: dict[str, tuple[str, ...]] = {
     "gnss": ("GGA", "RMC", "VTG"),
     "heading": ("HDT",),
     "depth": ("DPT", "DBT"),
@@ -87,7 +85,7 @@ class KeyEvent:
     key: str
 
 
-def start_keypress_thread(events: "queue.Queue[KeyEvent]") -> threading.Event:
+def start_keypress_thread(events: queue.Queue[KeyEvent]) -> threading.Event:
     """Spawn a daemon thread that pushes keypress events.
 
     Returns the stop event — set it to drain and exit. The thread
@@ -101,12 +99,12 @@ def start_keypress_thread(events: "queue.Queue[KeyEvent]") -> threading.Event:
         # by design (matches aqps and kmall-replay). Importing inside
         # the function rather than at module top so the rest of the
         # module can be imported on non-Windows hosts during dev.
-        import msvcrt  # noqa: PLC0415
+        import msvcrt
 
         # Special keys (arrows etc.) arrive as a two-char sequence: a
         # \x00 or \xe0 lead byte, then a discriminator. Reading them
         # in one place keeps the dispatch table tight.
-        ARROW = {"H": "up", "P": "down", "K": "left", "M": "right"}
+        arrow_keys = {"H": "up", "P": "down", "K": "left", "M": "right"}
 
         while not stop.is_set():
             if not msvcrt.kbhit():
@@ -120,7 +118,7 @@ def start_keypress_thread(events: "queue.Queue[KeyEvent]") -> threading.Event:
                     # Lead byte without a follow-up; rare, ignore.
                     continue
                 disc = msvcrt.getwch()
-                mapped = ARROW.get(disc)
+                mapped = arrow_keys.get(disc)
                 if mapped is not None:
                     events.put(KeyEvent(key=mapped))
                 continue
@@ -154,7 +152,7 @@ def start_keypress_thread(events: "queue.Queue[KeyEvent]") -> threading.Event:
 # ---------------------------------------------------------------------
 
 
-def sentences_for(spec: DriverSpec) -> List[str]:
+def sentences_for(spec: DriverSpec) -> list[str]:
     """Return the active sentence list for a driver spec, with defaults."""
     raw = spec.state.get("sentences")
     if isinstance(raw, list) and raw:
@@ -198,7 +196,7 @@ def adjust_rate(spec: DriverSpec, delta_hz: float) -> None:
 # ---------------------------------------------------------------------
 
 
-def _format_destinations(config: Optional[Config]) -> str:
+def _format_destinations(config: Config | None) -> str:
     """Return ``"host:port (UDP)"`` (with ``+N`` if more than one)."""
     if config is None or not config.destinations:
         return "—"
@@ -211,8 +209,8 @@ def _format_destinations(config: Optional[Config]) -> str:
 
 def render(
     registry: ThreadedRegistry,
-    scenarios: List[ScenarioEntry],
-    active_scenario: Optional[Path],
+    scenarios: list[ScenarioEntry],
+    active_scenario: Path | None,
     started_at: float,
     ui: UIState,
 ) -> Group:
@@ -279,7 +277,7 @@ def render(
     return body
 
 
-def _render_picker(scenarios: List[ScenarioEntry], active: Optional[Path]) -> Table:
+def _render_picker(scenarios: list[ScenarioEntry], active: Path | None) -> Table:
     picker = Table(title="scenarios", expand=True, header_style="bold yellow")
     picker.add_column("#", justify="right")
     picker.add_column("name")
@@ -298,8 +296,8 @@ def _render_picker(scenarios: List[ScenarioEntry], active: Optional[Path]) -> Ta
 
 
 def _render_config_panel(
-    config: Optional[Config],
-    handles: List,  # type: ignore[type-arg]
+    config: Config | None,
+    handles: list,  # type: ignore[type-arg]
     ui: UIState,
 ) -> Panel:
     """Per-driver edit panel: rate field + sentence toggles."""

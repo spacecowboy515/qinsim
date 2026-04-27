@@ -27,18 +27,18 @@ usual home for that).
 from __future__ import annotations
 
 import datetime
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import List, Optional, Sequence
+from enum import StrEnum
 
+from .._core.channel import OutputChannel
 from .._core.formatters.nmea_gnss import NMEA_BUILDERS
 from .._core.geo import KNOTS_TO_MPS, forward_project
 from .._core.path_cursor import PathCursor
-from .._core.channel import OutputChannel
 from .._core.state.gnss_state import GST_PROFILES, GnssState
 
 
-class GnssMode(str, Enum):
+class GnssMode(StrEnum):
     """How the driver decides position and heading each tick."""
 
     MANUAL = "manual"
@@ -59,7 +59,7 @@ class GnssDriver:
     channel: OutputChannel
     sentences: Sequence[str] = field(default_factory=lambda: ["GGA", "RMC", "VTG"])
     mode: GnssMode = GnssMode.MANUAL
-    path_cursor: Optional[PathCursor] = None
+    path_cursor: PathCursor | None = None
 
     def __post_init__(self) -> None:
         unknown = [s for s in self.sentences if s not in NMEA_BUILDERS]
@@ -73,12 +73,12 @@ class GnssDriver:
         ):
             raise ValueError("PATH mode requires a loaded PathCursor")
 
-    def tick(self, dt_seconds: float) -> List[bytes]:
+    def tick(self, dt_seconds: float) -> list[bytes]:
         """Advance state by ``dt_seconds`` and emit one tick of sentences."""
         if dt_seconds < 0:
             raise ValueError("dt_seconds must be non-negative")
 
-        self.state.current_time_utc = datetime.datetime.now(datetime.timezone.utc)
+        self.state.current_time_utc = datetime.datetime.now(datetime.UTC)
 
         if self.mode is GnssMode.PATH:
             self._advance_on_path(dt_seconds)
@@ -97,7 +97,7 @@ class GnssDriver:
             for i in range(1, max(1, self.state.num_satellites) + 1)
         ][: self.state.num_satellites]
 
-        emitted: List[bytes] = []
+        emitted: list[bytes] = []
         for key in self.sentences:
             result = NMEA_BUILDERS[key](self.state)
             # GSV is multi-line — the builder returns a list. Treating

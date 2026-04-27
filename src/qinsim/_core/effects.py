@@ -20,7 +20,7 @@ from __future__ import annotations
 import random
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Protocol
 
 
 @dataclass(frozen=True)
@@ -48,7 +48,7 @@ class ChannelEffect(Protocol):
     whatever the earlier effects emitted.
     """
 
-    def apply(self, data: bytes, ctx: EmitContext) -> Optional[bytes]:
+    def apply(self, data: bytes, ctx: EmitContext) -> bytes | None:
         ...
 
 
@@ -66,10 +66,10 @@ class DropoutEffect:
 
     TYPE_NAME = "dropout"
 
-    def apply(self, data: bytes, ctx: EmitContext) -> Optional[bytes]:
+    def apply(self, data: bytes, ctx: EmitContext) -> bytes | None:
         return None if self.rng.random() < self.prob else data
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"type": self.TYPE_NAME, "prob": self.prob}
 
 
@@ -86,11 +86,11 @@ class BurstDropoutEffect:
 
     duration_s: float
     interval_s: float
-    _anchor: Optional[float] = None
+    _anchor: float | None = None
 
     TYPE_NAME = "burst_dropout"
 
-    def apply(self, data: bytes, ctx: EmitContext) -> Optional[bytes]:
+    def apply(self, data: bytes, ctx: EmitContext) -> bytes | None:
         if self._anchor is None:
             self._anchor = ctx.emitted_ts
         # Guard against a zero-interval misconfig — treat as no-op rather
@@ -100,7 +100,7 @@ class BurstDropoutEffect:
         phase = (ctx.emitted_ts - self._anchor) % self.interval_s
         return None if phase < self.duration_s else data
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "type": self.TYPE_NAME,
             "duration_s": self.duration_s,
@@ -122,12 +122,12 @@ class JitterEffect:
 
     TYPE_NAME = "jitter"
 
-    def apply(self, data: bytes, ctx: EmitContext) -> Optional[bytes]:
+    def apply(self, data: bytes, ctx: EmitContext) -> bytes | None:
         if self.max_delay_ms > 0:
             time.sleep(self.rng.uniform(0, self.max_delay_ms / 1000.0))
         return data
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"type": self.TYPE_NAME, "max_delay_ms": self.max_delay_ms}
 
 
@@ -162,7 +162,7 @@ class CorruptEffect:
                 f"supported: {self._MODES}"
             )
 
-    def apply(self, data: bytes, ctx: EmitContext) -> Optional[bytes]:
+    def apply(self, data: bytes, ctx: EmitContext) -> bytes | None:
         if not data or self.rng.random() >= self.prob:
             return data
         if self.mode == "bitflip":
@@ -200,7 +200,7 @@ class CorruptEffect:
             return data  # not hex; pass through
         return body[:-1] + bytes([new]) + data[len(data) - trailer_len:]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"type": self.TYPE_NAME, "prob": self.prob, "mode": self.mode}
 
 
@@ -216,12 +216,12 @@ class StuckValueEffect:
     """
 
     duration_s: float
-    _frozen: Optional[bytes] = None
-    _frozen_until: Optional[float] = None
+    _frozen: bytes | None = None
+    _frozen_until: float | None = None
 
     TYPE_NAME = "stuck_value"
 
-    def apply(self, data: bytes, ctx: EmitContext) -> Optional[bytes]:
+    def apply(self, data: bytes, ctx: EmitContext) -> bytes | None:
         if self._frozen is None or self._frozen_until is None or ctx.emitted_ts >= self._frozen_until:
             # Fresh arm: this line becomes the frozen value and starts a
             # new window. Lines that arrive during the window get the
@@ -233,7 +233,7 @@ class StuckValueEffect:
             return data
         return self._frozen
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"type": self.TYPE_NAME, "duration_s": self.duration_s}
 
 
@@ -242,7 +242,7 @@ class StuckValueEffect:
 # ---------------------------------------------------------------------------
 
 
-def effect_from_dict(data: Dict[str, Any]) -> ChannelEffect:
+def effect_from_dict(data: dict[str, Any]) -> ChannelEffect:
     """Build an effect from its JSON-shaped dict.
 
     Raises ``ValueError`` for an unknown ``type`` or a missing required
@@ -278,11 +278,12 @@ def effect_from_dict(data: Dict[str, Any]) -> ChannelEffect:
     raise ValueError(f"unknown effect type {t!r}")
 
 
-def effect_to_dict(effect: ChannelEffect) -> Dict[str, Any]:
+def effect_to_dict(effect: ChannelEffect) -> dict[str, Any]:
     """Inverse of :func:`effect_from_dict` for any built-in effect."""
     hook = getattr(effect, "to_dict", None)
     if callable(hook):
-        return hook()
+        result: dict[str, Any] = hook()
+        return result
     # Fallback for third-party effects that don't implement to_dict — we
     # surface at least the class name so the manifest isn't opaque.
     return {"type": effect.__class__.__name__.lower()}

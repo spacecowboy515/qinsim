@@ -15,7 +15,6 @@ consistent).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
 
 from .._core.channel import OutputChannel
 from .._core.formatters.tss1 import build_tss1
@@ -31,7 +30,7 @@ class MotionDriver:
     channel: OutputChannel
     model: MotionModel
 
-    def tick(self, dt_seconds: float) -> List[bytes]:
+    def tick(self, dt_seconds: float) -> list[bytes]:
         if dt_seconds < 0:
             raise ValueError("dt_seconds must be non-negative")
 

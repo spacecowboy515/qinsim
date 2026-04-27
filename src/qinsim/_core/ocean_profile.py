@@ -31,7 +31,6 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass, field
-from typing import Tuple
 
 
 def _clamp(val: float, lo: float, hi: float) -> float:
@@ -113,7 +112,7 @@ class OceanProfileModel:
 
         DOCUMENTED formula from Mackenzie, *J. Acoust. Soc. Am.* 70, 807 (1981).
         """
-        T, S, z = t_c, s_psu, depth_m
+        T, S, z = t_c, s_psu, depth_m  # noqa: N806 — match Mackenzie (1981) variable naming
         c = (
             1448.96
             + 4.591 * T
@@ -135,7 +134,7 @@ class OceanProfileModel:
         self,
         depth_m: float,
         rng: random.Random,
-    ) -> Tuple[float, float, float, float, float]:
+    ) -> tuple[float, float, float, float, float]:
         """Return ``(temperature_c, salinity_psu, pressure_dbar, conductivity_mscm, sv_mps)``.
 
         Values include Gaussian noise per the config. Physically implausible

@@ -14,13 +14,12 @@ Heading-only devices (needs bearing only), and any future motion preview.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import List, Sequence, Tuple
 
 from .geo import bearing_to_waypoint, forward_project, haversine_distance
 
-
-LatLon = Tuple[float, float]
+LatLon = tuple[float, float]
 
 
 @dataclass
@@ -36,9 +35,9 @@ class PathCursor:
     - ``loop=False`` — clamp to the end of the final segment.
     """
 
-    points: List[LatLon] = field(default_factory=list)
-    segment_bearings: List[float] = field(default_factory=list)
-    segment_lengths: List[float] = field(default_factory=list)
+    points: list[LatLon] = field(default_factory=list)
+    segment_bearings: list[float] = field(default_factory=list)
+    segment_lengths: list[float] = field(default_factory=list)
     seg_index: int = 0
     seg_offset_m: float = 0.0
     total_length_m: float = 0.0

@@ -9,7 +9,6 @@ import pytest
 from qinsim.config import (
     Config,
     ConfigError,
-    DriverSpec,
     EffectSpec,
     list_scenarios,
     load_config,

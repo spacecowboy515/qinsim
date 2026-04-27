@@ -20,7 +20,6 @@ import pytest
 from qinsim.config import load_config
 from qinsim.runtime import ThreadedRegistry
 
-
 # How long each scenario runs in the smoke test. Long enough to capture
 # at least one tick from the slowest driver (env at 1 Hz) and short
 # enough that the suite still completes in a few seconds.
@@ -44,7 +43,7 @@ def _run_and_capture(scenario_path: Path) -> Counter:
             try:
                 data, _ = sock.recvfrom(4096)
                 captured.append(data)
-            except socket.timeout:
+            except TimeoutError:
                 continue
 
     listener = threading.Thread(target=_listen)
@@ -72,7 +71,7 @@ def _run_and_capture(scenario_path: Path) -> Counter:
 
 def test_harbour_rtk_fixed_emits_every_kind(bundled_scenarios_dir: Path) -> None:
     counts = _run_and_capture(bundled_scenarios_dir / "harbour_rtk_fixed.yaml")
-    # GNSS @ 10 Hz × 0.6 s = 6, but use lower bound 3 so a slow CI box
+    # GNSS @ 10 Hz x 0.6 s = 6, but use lower bound 3 so a slow CI box
     # still passes; the goal is "at least flowing", not throughput.
     assert counts["$GPGGA"] >= 3
     assert counts["$GPHDT"] >= 3

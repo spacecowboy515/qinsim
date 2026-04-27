@@ -13,9 +13,9 @@ under load.
 
 from __future__ import annotations
 
+import contextlib
 import socket
 import threading
-from typing import Optional
 
 
 class UdpTransport:
@@ -23,7 +23,7 @@ class UdpTransport:
 
     def __init__(self, enable_broadcast: bool = False) -> None:
         self._lock = threading.Lock()
-        self._sock: Optional[socket.socket] = None
+        self._sock: socket.socket | None = None
         self._closed = False
         self._enable_broadcast = enable_broadcast
         self._ensure_socket()
@@ -64,13 +64,9 @@ class UdpTransport:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # SO_REUSEADDR is a cheap insurance against quick restart TIME_WAIT
         # on platforms that honour it; harmless if unsupported.
-        try:
+        with contextlib.suppress(OSError):
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        except OSError:
-            pass
         if self._enable_broadcast:
-            try:
+            with contextlib.suppress(OSError):
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            except OSError:
-                pass
         self._sock = s

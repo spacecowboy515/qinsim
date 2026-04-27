@@ -22,15 +22,13 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass, field
-from typing import Tuple
-
 
 # Amplitude envelopes at sea states 0..5. VERIFIED against Meridian's
 # motion_simulator — kept identical so any recording captured against
 # Meridian replays with the same numeric range against this port.
-_ROLL_AMP_DEG_TABLE: Tuple[float, ...] = (0.3, 0.5, 0.8, 1.2, 1.8, 2.5)
-_PITCH_AMP_DEG_TABLE: Tuple[float, ...] = (0.1, 0.3, 0.5, 0.8, 1.2, 1.5)
-_HEAVE_AMP_M_TABLE: Tuple[float, ...] = (0.1, 0.25, 0.5, 0.9, 1.2, 1.5)
+_ROLL_AMP_DEG_TABLE: tuple[float, ...] = (0.3, 0.5, 0.8, 1.2, 1.8, 2.5)
+_PITCH_AMP_DEG_TABLE: tuple[float, ...] = (0.1, 0.3, 0.5, 0.8, 1.2, 1.5)
+_HEAVE_AMP_M_TABLE: tuple[float, ...] = (0.1, 0.25, 0.5, 0.9, 1.2, 1.5)
 
 
 @dataclass
@@ -70,7 +68,7 @@ class MotionModel:
             "mod": 60.0,
         }
 
-    def update(self, dt_seconds: float, sea_state: int) -> Tuple[float, float, float]:
+    def update(self, dt_seconds: float, sea_state: int) -> tuple[float, float, float]:
         """Advance the model by ``dt_seconds`` and return ``(roll, pitch, heave)``.
 
         ``sea_state`` is clamped into ``[0, 5]`` so callers can feed raw
@@ -124,7 +122,7 @@ class MotionModel:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def envelope(sea_state: int) -> Tuple[float, float, float]:
+    def envelope(sea_state: int) -> tuple[float, float, float]:
         """Return nominal ``(roll_deg, pitch_deg, heave_m)`` envelopes.
 
         These are the amplitude-table values before the slow modulation

@@ -13,7 +13,6 @@ and bearings are degrees clockwise from true north, in ``[0, 360)``.
 from __future__ import annotations
 
 import math
-from typing import Tuple
 
 # DOCUMENTED: mean Earth radius per IUGG 1980 (6 371 008.8 m, rounded to
 # the integer value Meridian's simulators use). Any nearby value is fine for
@@ -51,7 +50,7 @@ def bearing_to_waypoint(
 
 def forward_project(
     lat_deg: float, lon_deg: float, bearing_deg: float, distance_m: float,
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """Return ``(lat, lon)`` after travelling ``distance_m`` on ``bearing_deg``.
 
     The returned longitude is normalised into ``[-180, 180)`` so downstream

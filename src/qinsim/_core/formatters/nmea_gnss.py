@@ -12,7 +12,7 @@ factored into shared helpers because GGA, RMC, and GLL all use it.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Union
+from collections.abc import Callable
 
 from ..checksum import nmea_encode
 from ..state.gnss_state import GnssState
@@ -168,7 +168,7 @@ def build_gst(state: GnssState) -> str:
     return nmea_encode(body)
 
 
-def build_gsv(state: GnssState) -> List[str]:
+def build_gsv(state: GnssState) -> list[str]:
     """Build one or more GSV sentences listing satellites in view.
 
     GSV is the only multi-line NMEA sentence in aqps: up to four
@@ -194,12 +194,12 @@ def build_gsv(state: GnssState) -> List[str]:
         return [nmea_encode(body)]
 
     # Chunk sats into groups of 4; that is the GSV per-sentence cap.
-    groups: List[List[str]] = [prns[i:i + 4] for i in range(0, len(prns), 4)]
+    groups: list[list[str]] = [prns[i:i + 4] for i in range(0, len(prns), 4)]
     total = len(groups)
     in_view = len(prns)
-    out: List[str] = []
+    out: list[str] = []
     for idx, group in enumerate(groups, start=1):
-        parts: List[str] = []
+        parts: list[str] = []
         for prn in group:
             # Cheap deterministic sky placement: elevation 15..85, azimuth
             # 0..355 in 20-degree bins, SNR 35..48. All values are well
@@ -213,7 +213,7 @@ def build_gsv(state: GnssState) -> List[str]:
             snr = 35 + (n * 3) % 14
             parts.append(f"{prn},{elev:02d},{azim:03d},{snr:02d}")
         # Pad to four sat slots so the sentence is always 19 fields wide
-        # (total/msg/in_view + 4 × {prn,elev,azim,snr}). An empty slot is
+        # (total/msg/in_view + 4 x {prn,elev,azim,snr}). An empty slot is
         # four empty commas.
         while len(parts) < 4:
             parts.append(",,,")
@@ -241,7 +241,7 @@ def build_zda(state: GnssState) -> str:
 # the only current multi-line builder, but the union keeps the door open
 # for future batched sentences (e.g. multi-constellation GSA variants)
 # without another dispatch change.
-NMEA_BUILDERS: Dict[str, Callable[[GnssState], Union[str, List[str]]]] = {
+NMEA_BUILDERS: dict[str, Callable[[GnssState], str | list[str]]] = {
     "GGA": build_gga,
     "HDT": build_hdt,
     "RMC": build_rmc,

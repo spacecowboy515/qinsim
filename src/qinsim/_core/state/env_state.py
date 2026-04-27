@@ -9,7 +9,6 @@ values that get formatted on each tick.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
 
 from ..formatters.nmea_xdr import XdrMeasurement
 
@@ -29,7 +28,7 @@ class EnvState:
 
     # Operator-extensible XDR quads. Driver tick rebuilds this list
     # from the scalars above plus any extra YAML-configured channels.
-    xdr_quads: List[XdrMeasurement] = field(default_factory=list)
+    xdr_quads: list[XdrMeasurement] = field(default_factory=list)
 
     # Talker IDs.
     mtw_talker_id: str = "YX"

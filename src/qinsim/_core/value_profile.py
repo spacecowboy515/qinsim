@@ -17,10 +17,10 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class ChannelMode(str, Enum):
+class ChannelMode(StrEnum):
     """How a scalar channel decides its next value.
 
     ``STATIC``  — always returns :attr:`ChannelProfile.static_value`.

@@ -28,7 +28,6 @@ it from the GNSS INS solution.
 from __future__ import annotations
 
 import datetime
-from typing import Optional
 
 from ..checksum import nmea_encode
 from ..time_fmt import format_time_hhmmss_ss
@@ -39,7 +38,7 @@ def build_psxn20(
     roll_deg: float,
     pitch_deg: float,
     heave_m: float,
-    utc_now: Optional[datetime.datetime] = None,
+    utc_now: datetime.datetime | None = None,
 ) -> str:
     """Return ``$PSXN,20,...*CS`` for the given attitude scalars.
 
@@ -48,7 +47,7 @@ def build_psxn20(
     than relying on the default.
     """
     if utc_now is None:
-        utc_now = datetime.datetime.now(datetime.timezone.utc)
+        utc_now = datetime.datetime.now(datetime.UTC)
     body = (
         "PSXN,20,"
         f"{format_time_hhmmss_ss(utc_now)},"

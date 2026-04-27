@@ -16,13 +16,12 @@ of the bundled scenarios (``open_ocean_survey.yaml``) or hand-edit
 from __future__ import annotations
 
 import random
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import List, Optional, Sequence
 
 from .._core.channel import OutputChannel
 from .._core.formatters.nmea_depth import build_dbt, build_dpt
 from .._core.state.depth_state import DepthState
-
 
 _LINE_TERMINATOR = b"\r\n"
 
@@ -57,7 +56,7 @@ class DepthDriver:
     # Optional fixed seed for reproducible scenarios — None uses the
     # system entropy source, which is the right default for live runs
     # but produces noisy diffs in golden tests.
-    seed: Optional[int] = None
+    seed: int | None = None
     _rng: random.Random = field(init=False)
 
     def __post_init__(self) -> None:
@@ -69,7 +68,7 @@ class DepthDriver:
             )
         self._rng = random.Random(self.seed)
 
-    def tick(self, dt_seconds: float) -> List[bytes]:
+    def tick(self, dt_seconds: float) -> list[bytes]:
         if dt_seconds < 0:
             raise ValueError("dt_seconds must be non-negative")
 
@@ -81,7 +80,7 @@ class DepthDriver:
             step = self._rng.uniform(-1.0, 1.0) * self.walk_rate_m_per_s * dt_seconds
             self.state.depth_m = max(_MIN_DEPTH_M, self.state.depth_m + step)
 
-        emitted: List[bytes] = []
+        emitted: list[bytes] = []
         for key in self.sentences:
             sentence = _DEPTH_BUILDERS[key](self.state)
             data = sentence.encode("ascii") + _LINE_TERMINATOR

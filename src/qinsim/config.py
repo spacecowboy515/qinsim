@@ -14,12 +14,12 @@ edits the YAML and re-presses the scenario key.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any
 
-import yaml
-
+import yaml  # type: ignore[import-untyped]
 
 VALID_KINDS = ("gnss", "heading", "motion", "depth", "env")
 
@@ -50,9 +50,9 @@ class EffectSpec:
     """Channel effect, in dict form ready for ``effect_from_dict``."""
 
     kind: str
-    params: Dict[str, Any] = field(default_factory=dict)
+    params: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"type": self.kind, **self.params}
 
 
@@ -63,8 +63,8 @@ class DriverSpec:
     name: str
     kind: str
     rate_hz: float
-    state: Dict[str, Any] = field(default_factory=dict)
-    effects: List[EffectSpec] = field(default_factory=list)
+    state: dict[str, Any] = field(default_factory=dict)
+    effects: list[EffectSpec] = field(default_factory=list)
 
 
 @dataclass
@@ -72,8 +72,8 @@ class Config:
     """Top-level scenario config."""
 
     name: str
-    destinations: List[Destination]
-    drivers: List[DriverSpec]
+    destinations: list[Destination]
+    drivers: list[DriverSpec]
 
 
 # ---------------------------------------------------------------------
@@ -108,12 +108,12 @@ def validate_config(raw: Mapping[str, Any], *, default_name: str = "scenario") -
     return Config(name=name, destinations=destinations, drivers=drivers)
 
 
-def _validate_destinations(raw: Any) -> List[Destination]:
+def _validate_destinations(raw: Any) -> list[Destination]:
     if raw is None or raw == []:
         raise ConfigError("destinations", "at least one destination required")
     if not isinstance(raw, list):
         raise ConfigError("destinations", "must be a list")
-    out: List[Destination] = []
+    out: list[Destination] = []
     for i, entry in enumerate(raw):
         path = f"destinations[{i}]"
         if not isinstance(entry, dict):
@@ -128,10 +128,10 @@ def _validate_destinations(raw: Any) -> List[Destination]:
     return out
 
 
-def _validate_drivers(raw: Any) -> List[DriverSpec]:
+def _validate_drivers(raw: Any) -> list[DriverSpec]:
     if not isinstance(raw, dict) or not raw:
         raise ConfigError("drivers", "must be a non-empty mapping of name -> spec")
-    out: List[DriverSpec] = []
+    out: list[DriverSpec] = []
     for name, spec in raw.items():
         if not isinstance(name, str) or not name:
             raise ConfigError("drivers", f"driver name must be a non-empty string, got {name!r}")
@@ -196,7 +196,7 @@ class ScenarioEntry:
     name: str
 
 
-def list_scenarios(directory: Path) -> List[ScenarioEntry]:
+def list_scenarios(directory: Path) -> list[ScenarioEntry]:
     """Return ``*.yaml`` files in ``directory``, sorted by filename.
 
     Empty list if the directory does not exist — the runtime treats
@@ -205,7 +205,7 @@ def list_scenarios(directory: Path) -> List[ScenarioEntry]:
     """
     if not directory.is_dir():
         return []
-    entries: List[ScenarioEntry] = []
+    entries: list[ScenarioEntry] = []
     for path in sorted(directory.glob("*.yaml")):
         entries.append(ScenarioEntry(path=path, name=path.stem))
     return entries

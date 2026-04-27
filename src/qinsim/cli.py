@@ -127,6 +127,15 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         default=_LOCAL_SCENARIO_DIR,
         help="Directory the picker scans for scenarios. Default: ./scenarios/",
     )
+    s_serve.add_argument(
+        "--refresh-scenarios",
+        action="store_true",
+        help=(
+            "Overwrite bundled scenarios on disk with the versions baked into "
+            "this build. Use after upgrading the exe; hand-authored YAMLs that "
+            "don't share a name with a bundled scenario are left alone."
+        ),
+    )
 
     s_val = sub.add_parser("validate", help="Validate a scenario YAML and print the parsed config")
     s_val.add_argument("scenario", type=Path)
@@ -136,6 +145,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--scenarios-dir",
         type=Path,
         default=_LOCAL_SCENARIO_DIR,
+    )
+    s_list.add_argument(
+        "--refresh-scenarios",
+        action="store_true",
+        help="Overwrite bundled scenarios on disk with this build's versions.",
     )
 
     args = p.parse_args(argv)
@@ -158,7 +172,9 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
-    _bootstrap_scenarios(args.scenarios_dir)
+    _bootstrap_scenarios(
+        args.scenarios_dir, refresh=getattr(args, "refresh_scenarios", False)
+    )
     scenarios = list_scenarios(args.scenarios_dir)
     if not scenarios and args.scenario is None:
         print(
@@ -355,7 +371,9 @@ def _cmd_validate(args: argparse.Namespace) -> int:
 
 
 def _cmd_list(args: argparse.Namespace) -> int:
-    _bootstrap_scenarios(args.scenarios_dir)
+    _bootstrap_scenarios(
+        args.scenarios_dir, refresh=getattr(args, "refresh_scenarios", False)
+    )
     scenarios = list_scenarios(args.scenarios_dir)
     if not scenarios:
         print(f"(no scenarios in {args.scenarios_dir})")
@@ -370,16 +388,16 @@ def _cmd_list(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------
 
 
-def _bootstrap_scenarios(target_dir: Path) -> None:
-    """Copy bundled scenarios to ``target_dir`` if it doesn't exist yet.
+def _bootstrap_scenarios(target_dir: Path, *, refresh: bool = False) -> None:
+    """Copy bundled scenarios to ``target_dir`` on first run (or refresh).
 
-    No-op once the operator has anything in place — we never overwrite,
-    so hand-edited scenarios survive across upgrades.
+    Default behaviour copies only when the target dir is empty — that
+    way an operator's hand-edited scenarios survive an upgrade. Pass
+    ``refresh=True`` (the ``--refresh-scenarios`` CLI flag) to overwrite
+    bundled YAMLs on disk with the versions baked into this build;
+    files whose names don't match a bundled scenario are left alone.
     """
-    if target_dir.exists() and any(target_dir.glob("*.yaml")):
-        return
     target_dir.mkdir(parents=True, exist_ok=True)
-
     yamls = list(_iter_bundled_yamls())
     if not yamls:
         log.warning(
@@ -387,9 +405,13 @@ def _bootstrap_scenarios(target_dir: Path) -> None:
             target_dir,
         )
         return
+
+    if not refresh and any(target_dir.glob("*.yaml")):
+        return
+
     for src in yamls:
         dest = target_dir / src.name
-        if dest.exists():
+        if dest.exists() and not refresh:
             continue
         shutil.copyfile(src, dest)
 

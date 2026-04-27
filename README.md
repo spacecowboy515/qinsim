@@ -100,6 +100,20 @@ qinsim.exe validate scenarios\harbour_rtk_fixed.yaml
 qinsim.exe serve scenarios\open_ocean_survey.yaml
 ```
 
+**Refresh bundled scenarios after an upgrade.** First-run extracts
+the bundled YAMLs to `scenarios\` next to the exe and never
+overwrites them, so a newer build's bundled scenarios won't
+overwrite your local copies. After replacing `qinsim.exe` with a
+newer version run:
+
+```cmd
+qinsim.exe serve --refresh-scenarios
+```
+
+Files whose names match a bundled scenario are overwritten; any
+hand-authored YAMLs you added under different names are left
+alone.
+
 **Qinsy isn't seeing the data.** Check the destination in the YAML
 matches Qinsy's input config, and that Windows Firewall isn't
 swallowing UDP between hosts. Loopback (`127.0.0.1`) bypasses the

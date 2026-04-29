@@ -9,7 +9,7 @@ description = "Minimal Qinsy NMEA simulator. Single-exe, UDP, fault injection, T
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Sam Glazier", email = "samuel@hydrosurveytech.com.au" }]
+authors = [{ name = "Sam Glazier" }]
 dependencies = [
     "pyyaml>=6.0",
     "rich>=13.7",
